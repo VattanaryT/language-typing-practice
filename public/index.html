@@ -98,6 +98,19 @@
           <p id="result-text"></p>
           <button type="button" id="result-next" class="btn">Next passage <span class="kbd">Enter</span></button>
         </div>
+        <section id="translation" class="translation" aria-label="English translation" hidden>
+          <div class="translation-head">
+            <span class="label">In English</span>
+            <span class="ai-badge" title="Machine translation">AI translated</span>
+            <button type="button" id="translation-toggle" class="link" aria-controls="translation-text">Hide</button>
+          </div>
+          <p id="translation-text" class="translation-text" lang="en"></p>
+          <p id="translation-note" class="translation-note">
+            Translated by an AI model (Claude), not by a person. Use it to get the gist of what you're typing.
+            It is usually right about the meaning of a sentence, but it can miss idioms, wordplay, rhyme and names,
+            it isn't word-for-word, and it can occasionally be wrong. Check a dictionary before relying on a single word.
+          </p>
+        </section>
         <p id="attribution" class="attribution"></p>
       </section>
 
@@ -107,6 +120,7 @@
     <footer>
       <p>
         Stories from <a href="https://bloomlibrary.org/language:th" rel="noopener">Bloom Library</a>, shared by their authors under Creative Commons licences (credited under each passage).
+        English translations and English titles are AI-generated and may contain mistakes.
         Nothing you type leaves your browser. <a href="https://github.com/VattanaryT/language-typing-practice" id="source-link" rel="noopener">Source code</a>.
       </p>
     </footer>

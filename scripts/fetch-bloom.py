@@ -5,12 +5,18 @@ third-party requests, no CORS), and we only ship books whose license we checked.
 
 Kept: Creative Commons licenses (attribution is shown in the app for every
 story). Skipped: all-rights-reserved/custom licenses, drafts, games/quizzes,
-sign-language books, and books with too little Thai prose to type.
+sign-language books, religious texts, and books with too little Thai prose.
+
+Translations: English for each paragraph is looked up in
+data/translations/en.json, keyed by a hash of the Thai text (see para_key), so
+re-fetching keeps existing translations and only new text needs translating.
+They are AI-generated. A story under a "No Derivatives" (-nd) license ships
+without them, because a translation is an adaptation that license forbids.
 
 Usage: python3 scripts/fetch-bloom.py [max_books]
 """
 from collections import Counter
-import json, re, sys, time, urllib.parse, urllib.request, pathlib
+import hashlib, json, re, sys, time, urllib.parse, urllib.request, pathlib
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
@@ -19,14 +25,33 @@ import xml.etree.ElementTree as ET
 LANG = "th"
 SCRIPT = re.compile(r"[\u0E00-\u0E7F]")  # Thai block
 # Books mentioning any of these are skipped, to keep the set to general stories.
-SKIP_TEXT = ("พระเยซู", "อธิษฐาน", "พระคัมภีร์", "คริสต", "พระวิญญาณ")
+SKIP_TEXT = ("พระเยซู", "อธิษฐาน", "พระคัมภีร์", "คริสต", "พระวิญญาณ", "พระเจ้าตรัส",
+             "อดัม", "โนอาห์", "อับราฮัม", "อับราม")
+# Author/illustrator credit lines at the end of many books: a name with an
+# honorific, followed by a role. Real people's names aren't story text.
+CREDIT_LINE = re.compile(
+    r"^([๐-๙0-9]+\.\s*)?(ด\.ญ\.|ด\.ช\.|เด็กหญิง|เด็กชาย|นางสาว|น\.ส\.|นาง|นาย)\S*\s.*"
+    r"(ครู|นักเรียน|ผู้อำนวยการ|เจ้าหน้าที่|โรงเรียน|ศศช|ตัวแทน)|^([๐-๙0-9]+\.\s*)?(ด\.ญ\.|ด\.ช\.|นางสาว|นาย|นาง)\S+\s+\S+$"
+    r"|^(ผู้แต่ง|ผู้จัดทำ|คณะผู้จัดทำ|เค้าโครงเรื่อง|ที่ปรึกษา|เรียบเรียงและภาพ)|^ที่มา\s*:|^(คุณ)?ครูและนักเรียน|^โรงเรียน\S*$")
+# A line listing several students ("ด.ญ. ... ด.ญ. ...") is credits at any length.
+CREDIT_LIST = re.compile(r"(ด\.[ญช]\..*){2,}")
+TRANSLATIONS = pathlib.Path("data/translations/en.json")
+DERIVATIVES_OK = {"cc-by", "cc-by-sa", "cc-by-nc", "cc-by-nc-sa", "cc0"}
 
 API = f"https://api.bloomlibrary.org/v1/books?lang={LANG}&limit=500"
 BUCKET = "https://s3.amazonaws.com/BloomLibraryBooks"
 OK_LICENSES = {"cc-by", "cc-by-sa", "cc-by-nc", "cc-by-nc-sa", "cc-by-nd", "cc-by-nc-nd", "cc0"}
 SKIP_WORDS = ("Bible", "sign", "quiz", "game", "activity")
 MAX = int(sys.argv[1]) if len(sys.argv) > 1 else 80
-THAI = re.compile(r"[฀-๿]")
+MIN_CHARS = 150  # below this a "book" is usually a cover plus a label or two
+
+
+def is_credit(p):
+    return bool((len(p) < 90 and CREDIT_LINE.search(p)) or CREDIT_LIST.search(p) or p.startswith("ที่มา"))
+
+
+def para_key(text):
+    return hashlib.sha1(text.encode()).hexdigest()[:10]
 
 
 def get(url, as_json=False):
@@ -114,6 +139,8 @@ def main():
         tags = " ".join(b.get("tags", []))
         if not title or b.get("draft") or not b.get("inCirculation", True):
             continue
+        if re.match(r"^\d+\s*\.", title):  # numbered series ("02. ...") are Bible-for-Children lessons
+            continue
         if any(w.lower() in (tags + " " + " ".join(b.get("features", []))).lower() for w in SKIP_WORDS):
             continue
         base = b["baseUrl"]
@@ -133,10 +160,10 @@ def main():
         except Exception as e:  # one bad book shouldn't kill the build
             print("  skip", title, e)
             continue
-        paras = list(dict.fromkeys(p for p in parser.paras if p != title))  # dedupe, keep order
+        paras = list(dict.fromkeys(p for p in parser.paras if p != title and not is_credit(p)))
         if any(w in p for p in paras for w in SKIP_TEXT):
             continue
-        if sum(len(p) for p in paras) < 60:
+        if sum(len(p) for p in paras) < MIN_CHARS:
             continue
         out.append({
             "id": b["id"],
@@ -157,7 +184,7 @@ def main():
     kept = []
     for s in out:
         s["paragraphs"] = [p for p in s["paragraphs"] if seen[p] < 2]
-        if sum(len(p) for p in s["paragraphs"]) >= 60:
+        if sum(len(p) for p in s["paragraphs"]) >= MIN_CHARS:
             kept.append(s)
     # Levels 1-4 are quartiles of the difficulty score, so each level has
     # roughly the same number of stories to choose from.
@@ -165,6 +192,24 @@ def main():
     for i, s in enumerate(kept):
         s["level"] = 1 + i * 4 // len(kept)
     out = kept
+
+    tr = json.loads(TRANSLATIONS.read_text()) if TRANSLATIONS.exists() else {}
+    missing = []
+    for s in out:
+        s["title_en"] = tr.get(para_key(s["title"]))
+        if s["license"] in DERIVATIVES_OK:
+            s["paragraphs_en"] = [tr.get(para_key(p)) for p in s["paragraphs"]]
+            missing += [(s["title"], p) for p, e in zip(s["paragraphs"], s["paragraphs_en"]) if e is None]
+        else:
+            s["paragraphs_en"] = None
+        if s["title_en"] is None:
+            missing.append((s["title"], s["title"]))
+    todo = pathlib.Path("data/untranslated.tsv")
+    if missing:
+        todo.write_text("".join(f"{para_key(p)}\t{t}\t{p}\n" for t, p in missing))
+        print(f"{len(missing)} paragraphs/titles have no translation yet -> {todo}")
+    else:
+        todo.unlink(missing_ok=True)
     pathlib.Path("public/stories.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
     print(f"wrote {len(out)} stories to public/stories.json")
 

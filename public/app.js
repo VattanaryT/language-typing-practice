@@ -51,6 +51,7 @@ const state = {
   layout: LAYOUTS[store.get("tt_layout")] ? store.get("tt_layout") : "kedmanee",
   level: Number(store.get("tt_level")) in PASSAGE_LEN ? Number(store.get("tt_level")) : 1,
   showKeyboard: store.get("tt_keyboard") === "1",
+  showTranslation: store.get("tt_translation") !== "0",
   stories: [],
   story: null, // current story object, or null for own text
   customText: "",
@@ -95,20 +96,27 @@ function splitLong(text, len) {
   return out;
 }
 
+// Each passage remembers which source paragraphs it came from, so the
+// translation panel can show the matching English.
 function makePassages(paragraphs, len) {
   const out = [];
-  let cur = "";
-  for (const para of paragraphs.map(normalize).filter(Boolean)) {
-    for (const piece of para.length > len * 1.4 ? splitLong(para, len) : [para]) {
-      if (cur && cur.length + 1 + piece.length > len * 1.3) {
+  let cur = { text: "", paras: [] };
+  paragraphs.forEach((raw, i) => {
+    const para = normalize(raw);
+    if (!para) return;
+    const pieces = para.length > len * 1.4 ? splitLong(para, len) : [para];
+    for (const piece of pieces) {
+      if (cur.text && cur.text.length + 1 + piece.length > len * 1.3) {
         out.push(cur);
-        cur = piece;
+        cur = { text: piece, paras: [i], partial: pieces.length > 1 };
       } else {
-        cur = cur ? cur + " " + piece : piece;
+        cur.text = cur.text ? cur.text + " " + piece : piece;
+        if (cur.paras.at(-1) !== i) cur.paras.push(i);
+        if (pieces.length > 1) cur.partial = true;
       }
     }
-  }
-  if (cur) out.push(cur);
+  });
+  if (cur.text) out.push(cur);
   return out;
 }
 
@@ -139,12 +147,12 @@ function buildPassages() {
   const len = PASSAGE_LEN[state.level];
   const paras = state.story ? state.story.paragraphs : [state.customText];
   state.passages = makePassages(paras, len);
-  if (!state.passages.length) state.passages = [""];
+  if (!state.passages.length) state.passages = [{ text: "", paras: [] }];
 }
 
 function loadPassage(index) {
   state.pIndex = Math.max(0, Math.min(index, state.passages.length - 1));
-  state.target = state.passages[state.pIndex];
+  state.target = state.passages[state.pIndex].text;
   state.status = new Array(state.target.length).fill(0);
   state.pos = 0;
   state.keystrokes = state.correctKeys = 0;
@@ -168,6 +176,7 @@ function loadPassage(index) {
   $("prev-passage").disabled = state.pIndex === 0;
   $("next-passage").disabled = state.pIndex >= state.passages.length - 1 && !state.story;
   renderAttribution();
+  renderTranslation();
   renderStats();
   paint();
 }
@@ -301,6 +310,39 @@ function renderAttribution() {
   title.textContent = `“${s.title}”`;
   el.append(title, ` — ${s.copyright || "Bloom Library author"}. `);
   el.append(licUrl ? link(licName, licUrl) : licName, " · ", link("Read the illustrated book on Bloom Library", s.source));
+}
+
+// English for the paragraphs in the current passage. Hidden for your own text;
+// a "No Derivatives" story explains why it has none (a translation is an
+// adaptation that license forbids, so the build ships none for it).
+function renderTranslation() {
+  const panel = $("translation");
+  const s = state.story;
+  panel.hidden = !s;
+  if (!s) return;
+  const body = $("translation-text");
+  const on = state.showTranslation;
+  $("translation-toggle").textContent = on ? "Hide" : "Show";
+  $("translation-toggle").setAttribute("aria-expanded", String(on));
+  body.hidden = !on;
+  $("translation-note").hidden = !on;
+  if (!on) return;
+  body.textContent = "";
+  if (!s.paragraphs_en) {
+    body.className = "translation-text muted";
+    body.textContent = "No English for this story: its author's licence (No Derivatives) doesn't allow translations. Stories marked “Thai only” in the list are like this.";
+    return;
+  }
+  body.className = "translation-text";
+  const passage = state.passages[state.pIndex];
+  const lines = passage.paras.map((i) => s.paragraphs_en[i]).filter(Boolean);
+  body.textContent = lines.length ? lines.join(" ") : "No translation for this passage yet.";
+  if (lines.length && passage.partial) {
+    const note = document.createElement("span");
+    note.className = "partial-note";
+    note.textContent = "This passage is part of a longer sentence or paragraph; the English covers all of it.";
+    body.append(note);
+  }
 }
 
 // ---------- keyboard ----------
@@ -474,7 +516,11 @@ function fillStorySelect() {
   const sel = $("story-select");
   sel.textContent = "";
   if (!state.story) sel.add(new Option("Your own text", "__custom"));
-  for (const s of storiesAt(state.level)) sel.add(new Option(s.title, s.id));
+  for (const s of storiesAt(state.level)) {
+    // English first so the list is usable before you can read Thai.
+    const label = (s.title_en ? `${s.title_en} · ${s.title}` : s.title) + (s.paragraphs_en ? "" : " (Thai only)");
+    sel.add(new Option(label, s.id));
+  }
   sel.value = state.story ? state.story.id : "__custom";
 }
 
@@ -533,6 +579,11 @@ $("story-select").addEventListener("change", (e) => {
   focusTyping();
 });
 $("random-story").addEventListener("click", () => pickStory(randomStory().id));
+$("translation-toggle").addEventListener("click", () => {
+  state.showTranslation = !state.showTranslation;
+  store.set("tt_translation", state.showTranslation ? "1" : "0");
+  renderTranslation();
+});
 $("keyboard-toggle").addEventListener("click", () => setKeyboard(!state.showKeyboard));
 $("theme-toggle").addEventListener("click", () => {
   const next = effectiveTheme() === "dark" ? "light" : "dark";
