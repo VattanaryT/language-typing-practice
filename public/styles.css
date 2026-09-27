@@ -397,6 +397,10 @@ select {
 }
 /* English meaning, kept visually quieter than the passage: it's a reading
    aid beside the practice, not something to type. */
+.practice-main {
+  container-type: inline-size;
+  min-width: 0;
+}
 .practice-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -474,7 +478,9 @@ footer a {
 /* On-screen keyboard. Keys are sized in "u" (one standard key width) so the
    rows line up like a real board and scale with the container. */
 .keyboard {
-  --u: min(calc((100vw - 32px) / 15.2), 60px);
+  /* Sized from the left column (a query container), not the viewport, so the
+     board fits beside the translation. */
+  --u: min(calc(100cqw / 15.2), 60px);
   display: flex;
   flex-direction: column;
   align-items: center;

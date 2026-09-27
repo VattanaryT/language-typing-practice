@@ -90,7 +90,7 @@
             <button type="button" id="next-passage" class="link" aria-label="Next passage">Next →</button>
           </div>
         </div>
-        <!-- Passage on the left, English on the right on wide screens; stacked on narrow ones. -->
+        <!-- Left: passage + on-screen keyboard. Right: English. Stacked on narrow screens. -->
         <div class="practice-grid">
         <div class="practice-main">
         <div id="passage" class="passage" lang="th" tabindex="0" aria-label="Text to type. Click here, then start typing."></div>
@@ -101,6 +101,7 @@
           <p id="result-text"></p>
           <button type="button" id="result-next" class="btn">Next passage <span class="kbd">Enter</span></button>
         </div>
+        <section id="keyboard" class="keyboard" hidden aria-label="On-screen Thai keyboard"></section>
         </div>
         <section id="translation" class="translation" aria-label="English translation" hidden>
           <div class="translation-head">
@@ -119,7 +120,6 @@
         <p id="attribution" class="attribution"></p>
       </section>
 
-      <section id="keyboard" class="keyboard" hidden aria-label="On-screen Thai keyboard"></section>
     </main>
 
     <footer>
