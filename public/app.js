@@ -749,9 +749,21 @@ async function openLanguage(lang) {
   }
   const savedLayout = langGet("layout");
   const layout = cfg.layouts.some(([n]) => n === savedLayout) ? savedLayout : cfg.layouts[0][0];
+  // Clear the previous language's passage straight away; its stories may take
+  // a moment to download on a slow connection.
   state.story = null;
   state.customText = "";
   state.passages = [];
+  state.target = "";
+  state.status = [];
+  state.clusters = [];
+  clearInterval(timer);
+  $("passage").textContent = "Loading stories…";
+  $("story-select").textContent = "";
+  $("passage-count").textContent = "";
+  $("attribution").textContent = "";
+  $("translation").hidden = true;
+  $("result").hidden = true;
   setLayout(layout);
 
   const lvl = Number(langGet("level"));
