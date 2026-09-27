@@ -1,53 +1,85 @@
-"""Build public/stories.json from openly licensed Thai books on Bloom Library.
+"""Build public/stories-<lang>.json from openly licensed books on Bloom Library.
 
 Runs at build time, not in the browser: visitors never contact Bloom (no
 third-party requests, no CORS), and we only ship books whose license we checked.
 
 Kept: Creative Commons licenses (attribution is shown in the app for every
 story). Skipped: all-rights-reserved/custom licenses, drafts, games/quizzes,
-sign-language books, religious texts, and books with too little Thai prose.
+sign-language books, religious texts, and books with too little prose.
 
 Translations: English for each paragraph is looked up in
-data/translations/en.json, keyed by a hash of the Thai text (see para_key), so
+data/translations/en.json, keyed by a hash of the source text (see para_key), so
 re-fetching keeps existing translations and only new text needs translating.
 They are AI-generated. A story under a "No Derivatives" (-nd) license ships
 without them, because a translation is an adaptation that license forbids.
 
-Usage: python3 scripts/fetch-bloom.py [max_books]
+Usage: python3 scripts/fetch-bloom.py <lang>      (a key of LANGS: th, km)
 """
 from collections import Counter
 import hashlib, json, re, sys, time, urllib.parse, urllib.request, pathlib
 from html.parser import HTMLParser
 import xml.etree.ElementTree as ET
 
-# --- Adapting to another language: change LANG (a Bloom ISO code such as "km",
-# "lo", "my") and SCRIPT (the Unicode block of its letters). ---
-LANG = "th"
-SCRIPT = re.compile(r"[\u0E00-\u0E7F]")  # Thai block
-# Books mentioning any of these are skipped, to keep the set to general stories.
-SKIP_TEXT = ("พระเยซู", "อธิษฐาน", "พระคัมภีร์", "คริสต", "พระวิญญาณ", "พระเจ้าตรัส",
-             "อดัม", "โนอาห์", "อับราฮัม", "อับราม")
-# Author/illustrator credit lines at the end of many books: a name with an
-# honorific, followed by a role. Real people's names aren't story text.
-CREDIT_LINE = re.compile(
-    r"^([๐-๙0-9]+\.\s*)?(ด\.ญ\.|ด\.ช\.|เด็กหญิง|เด็กชาย|นางสาว|น\.ส\.|นาง|นาย)\S*\s.*"
-    r"(ครู|นักเรียน|ผู้อำนวยการ|เจ้าหน้าที่|โรงเรียน|ศศช|ตัวแทน)|^([๐-๙0-9]+\.\s*)?(ด\.ญ\.|ด\.ช\.|นางสาว|นาย|นาง)\S+\s+\S+$"
-    r"|^(ผู้แต่ง|ผู้จัดทำ|คณะผู้จัดทำ|เค้าโครงเรื่อง|ที่ปรึกษา|เรียบเรียงและภาพ)|^ที่มา\s*:|^(คุณ)?ครูและนักเรียน|^โรงเรียน\S*$")
-# A line listing several students ("ด.ญ. ... ด.ญ. ...") is credits at any length.
-CREDIT_LIST = re.compile(r"(ด\.[ญช]\..*){2,}")
+# --- Per-language settings. To add a language, add an entry here. ---
+#   script:     regex for the language's letters (lines without them are skipped)
+#   skip_text:  books mentioning any of these are skipped (religious texts), to
+#               keep the set to general stories
+#   credit:     author/illustrator credit lines (real people's names, not story)
+#   credit_list: a line listing several people, which is credits at any length
+#   clean:      extra characters to strip from the text
+#   max_books:  how many books to take from Bloom's listing
+LANGS = {
+    "th": dict(
+        name="Thai",
+        script=re.compile(r"[\u0E00-\u0E7F]"),
+        skip_text=("พระเยซู", "อธิษฐาน", "พระคัมภีร์", "คริสต", "พระวิญญาณ", "พระเจ้าตรัส",
+                   "อดัม", "โนอาห์", "อับราฮัม", "อับราม"),
+        credit=re.compile(
+            r"^([๐-๙0-9]+\.\s*)?(ด\.ญ\.|ด\.ช\.|เด็กหญิง|เด็กชาย|นางสาว|น\.ส\.|นาง|นาย)\S*\s.*"
+            r"(ครู|นักเรียน|ผู้อำนวยการ|เจ้าหน้าที่|โรงเรียน|ศศช|ตัวแทน)|^([๐-๙0-9]+\.\s*)?(ด\.ญ\.|ด\.ช\.|นางสาว|นาย|นาง)\S+\s+\S+$"
+            r"|^(ผู้แต่ง|ผู้จัดทำ|คณะผู้จัดทำ|เค้าโครงเรื่อง|ที่ปรึกษา|เรียบเรียงและภาพ)|^ที่มา\s*:|^(คุณ)?ครูและนักเรียน|^โรงเรียน\S*$"),
+        credit_list=re.compile(r"(ด\.[ญช]\..*){2,}"),
+        clean="",
+        max_books=80,
+    ),
+    "km": dict(
+        name="Khmer",
+        script=re.compile(r"[\u1780-\u17FF]"),
+        skip_text=("ព្រះយេស៊ូ", "ព្រះគម្ពីរ", "អធិស្ឋាន", "គ្រីស្ទ", "ព្រះវិញ្ញាណ", "ព្រះជាម្ចាស់", "ព្រះអម្ចាស់"),
+        credit=re.compile(
+            r"^(អ្នកនិពន្ធ|អ្នកគូរ|គំនូរ|រូបភាព|អ្នករៀបរៀង|រៀបរៀង|អ្នកបកប្រែ|បកប្រែ|កែសម្រួល|អ្នកកែសម្រួល|ផលិតដោយ|ឧបត្ថម្ភដោយ)\s*[:៖]"
+            r"|^(លោកស្រី|លោក|អ្នកស្រី|កញ្ញា)\s*\S+(\s+\S+)?$"),
+        credit_list=re.compile(r"((លោកស្រី|លោក|កញ្ញា|អ្នកស្រី)\s*\S+.*){3,}"),
+        clean="\u200b",  # Khmer text carries zero-width spaces between words
+        max_books=200,
+    ),
+}
+LANG = sys.argv[1] if len(sys.argv) > 1 else "th"
+if LANG not in LANGS:
+    sys.exit(f"usage: fetch-bloom.py <{'|'.join(LANGS)}>")
+CFG = LANGS[LANG]
+SCRIPT = CFG["script"]
 TRANSLATIONS = pathlib.Path("data/translations/en.json")
 DERIVATIVES_OK = {"cc-by", "cc-by-sa", "cc-by-nc", "cc-by-nc-sa", "cc0"}
 
-API = f"https://api.bloomlibrary.org/v1/books?lang={LANG}&limit=500"
+API = f"https://api.bloomlibrary.org/v1/books?lang={LANG}&limit=1000"
 BUCKET = "https://s3.amazonaws.com/BloomLibraryBooks"
 OK_LICENSES = {"cc-by", "cc-by-sa", "cc-by-nc", "cc-by-nc-sa", "cc-by-nd", "cc-by-nc-nd", "cc0"}
 SKIP_WORDS = ("Bible", "sign", "quiz", "game", "activity")
-MAX = int(sys.argv[1]) if len(sys.argv) > 1 else 80
+MAX = CFG["max_books"]
+OUT = pathlib.Path(f"public/stories-{LANG}.json")
 MIN_CHARS = 150  # below this a "book" is usually a cover plus a label or two
 
 
 def is_credit(p):
-    return bool((len(p) < 90 and CREDIT_LINE.search(p)) or CREDIT_LIST.search(p) or p.startswith("ที่มา"))
+    return bool((len(p) < 90 and CFG["credit"].search(p)) or CFG["credit_list"].search(p) or p.startswith("ที่มา"))
+
+
+def tidy(text):
+    """Collapse whitespace and drop language-specific invisible characters."""
+    for ch in CFG["clean"]:
+        text = text.replace(ch, "")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def para_key(text):
@@ -62,7 +94,7 @@ def get(url, as_json=False):
 
 
 class BookText(HTMLParser):
-    """Collect Thai text from content pages (not front/back matter)."""
+    """Collect the target language's text from content pages (not front/back matter)."""
 
     def __init__(self):
         super().__init__()
@@ -106,7 +138,7 @@ class BookText(HTMLParser):
             self.cur.append(data)
 
     def flush(self):
-        text = re.sub(r"\s+", " ", "".join(self.cur)).strip()
+        text = tidy("".join(self.cur))
         if text and SCRIPT.search(text):
             self.paras.append(text)
         self.cur = []
@@ -130,12 +162,12 @@ def difficulty(paras):
 
 def main():
     books = get(API, as_json=True)["results"]
-    print(f"{len(books)} Thai books listed")
+    print(f"{len(books)} {CFG['name']} books listed")
     out = []
     for b in books:
         if len(out) >= MAX:
             break
-        title = next((t["title"].strip() for t in b.get("titles", []) if t["lang"] == LANG), None)
+        title = next((tidy(t["title"]) for t in b.get("titles", []) if t["lang"] == LANG), None)
         tags = " ".join(b.get("tags", []))
         if not title or b.get("draft") or not b.get("inCirculation", True):
             continue
@@ -161,7 +193,7 @@ def main():
             print("  skip", title, e)
             continue
         paras = list(dict.fromkeys(p for p in parser.paras if p != title and not is_credit(p)))
-        if any(w in p for p in paras for w in SKIP_TEXT):
+        if any(w in p for p in paras + [title] for w in CFG["skip_text"]):
             continue
         if sum(len(p) for p in paras) < MIN_CHARS:
             continue
@@ -179,7 +211,20 @@ def main():
 
     # Series often share a "note to parents" page; a paragraph that shows up in
     # several books is boilerplate, not story.
-    out = list({s["title"]: s for s in out}.values())  # same book uploaded twice
+    # The same book is often uploaded several times, with titles that differ
+    # only in spacing or punctuation. Keep the fullest copy of each, matching on
+    # the title's letters or on the whole text (not just the opening, since
+    # books in one series often share a foreword).
+    out.sort(key=lambda s: -sum(len(p) for p in s["paragraphs"]))
+    seen_keys, unique = set(), []
+    for s in out:
+        keys = {"t:" + re.sub(r"[\s.,!?:;៖។…\"'()]", "", s["title"]), "p:" + "|".join(s["paragraphs"])}
+        if keys & seen_keys:
+            print("  duplicate:", s["title"])
+            continue
+        seen_keys |= keys
+        unique.append(s)
+    out = unique
     seen = Counter(p for s in out for p in set(s["paragraphs"]))
     kept = []
     for s in out:
@@ -204,14 +249,14 @@ def main():
             s["paragraphs_en"] = None
         if s["title_en"] is None:
             missing.append((s["title"], s["title"]))
-    todo = pathlib.Path("data/untranslated.tsv")
+    todo = pathlib.Path(f"data/untranslated-{LANG}.tsv")
     if missing:
         todo.write_text("".join(f"{para_key(p)}\t{t}\t{p}\n" for t, p in missing))
         print(f"{len(missing)} paragraphs/titles have no translation yet -> {todo}")
     else:
         todo.unlink(missing_ok=True)
-    pathlib.Path("public/stories.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
-    print(f"wrote {len(out)} stories to public/stories.json")
+    OUT.write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+    print(f"wrote {len(out)} stories to {OUT}")
 
 
 if __name__ == "__main__":

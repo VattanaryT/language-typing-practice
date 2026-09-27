@@ -8,8 +8,8 @@ import re, pathlib, urllib.request
 
 CSS_URL = ("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600"
            "&family=Playfair+Display:ital,wght@0,400;0,600;1,400"
-           "&family=Sarabun:wght@400;500&display=swap")
-KEEP = {"latin", "thai"}  # unicode subsets we actually render
+           "&family=Sarabun:wght@400;500&family=Noto+Sans+Khmer:wght@400;500&display=swap")
+KEEP = {"latin", "thai", "khmer"}  # unicode subsets we actually render
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126 Safari/537.36"
 
 def get(url):

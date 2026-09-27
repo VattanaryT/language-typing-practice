@@ -10,8 +10,8 @@
       content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
-    <title>Thai Typing</title>
-    <meta name="description" content="Practice Thai typing (Kedmanee or Pattachote) with real, openly licensed children's stories." />
+    <title>Language Typing Practice</title>
+    <meta name="description" content="Practise Thai or Khmer typing with real, openly licensed children's stories, on-screen keyboards and English translations." />
     <!-- Sets the theme before styles load so there's no flash of the wrong one. -->
     <script src="theme-init.js"></script>
     <link rel="stylesheet" href="fonts.css" />
@@ -22,24 +22,49 @@
     <header>
       <div class="header-top">
         <div>
-          <h1>Thai Typing</h1>
-          <p class="subtitle" lang="th">ฝึกพิมพ์ภาษาไทย</p>
+          <h1><a href="#" class="home-link">Typing Practice</a></h1>
+          <p class="subtitle" id="subtitle">ไทย · ខ្មែរ</p>
         </div>
         <div class="header-actions">
           <button type="button" id="keyboard-toggle" class="pill" aria-pressed="false">Show keyboard</button>
           <button type="button" id="theme-toggle" class="pill" aria-label="Toggle dark mode"></button>
         </div>
       </div>
+      <nav class="tabs" aria-label="Language">
+        <a class="lang-tab" href="#" data-lang="">Home</a>
+        <a class="lang-tab" href="#th" data-lang="th">Thai <span lang="th">ไทย</span></a>
+        <a class="lang-tab" href="#km" data-lang="km">Khmer <span lang="km">ខ្មែរ</span></a>
+      </nav>
     </header>
 
     <main>
+      <section id="home" class="home" aria-label="Choose a language">
+        <p class="home-lede">Practise typing with real children's stories. Pick a language to start.</p>
+        <div class="lang-cards">
+          <a class="lang-card" href="#th">
+            <span class="lang-native" lang="th">ไทย</span>
+            <span class="lang-name">Thai</span>
+            <span class="lang-meta">Kedmanee or Pattachote keyboard · 78 stories</span>
+          </a>
+          <a class="lang-card" href="#km">
+            <span class="lang-native" lang="km">ខ្មែរ</span>
+            <span class="lang-name">Khmer</span>
+            <span class="lang-meta">NiDA standard keyboard · 28 stories</span>
+          </a>
+        </div>
+        <ul class="home-points">
+          <li>Your keyboard types the language you pick, whatever layout your computer uses.</li>
+          <li>An on-screen keyboard shows the next key, for when you don't have a Thai or Khmer keyboard.</li>
+          <li>Four levels, from short phrases to long sentences, with an English translation beside most stories.</li>
+          <li>No accounts and no tracking. Nothing you type leaves your browser.</li>
+        </ul>
+      </section>
+
+      <div id="practice-view" hidden>
       <section class="controls" aria-label="Practice settings">
         <div class="control">
           <span class="label" id="layout-label">Layout</span>
-          <div class="segmented" role="radiogroup" aria-labelledby="layout-label" id="layout-group">
-            <button type="button" role="radio" data-layout="kedmanee">Kedmanee</button>
-            <button type="button" role="radio" data-layout="pattachote">Pattachote</button>
-          </div>
+          <div class="segmented" role="radiogroup" aria-labelledby="layout-label" id="layout-group"></div>
         </div>
         <div class="control">
           <span class="label" id="level-label">Level</span>
@@ -61,8 +86,8 @@
       </section>
 
       <section id="custom-panel" class="custom-panel" hidden>
-        <label class="label" for="custom-text">Paste any Thai text to practise. It stays in your browser.</label>
-        <textarea id="custom-text" rows="4" lang="th" placeholder="วางข้อความภาษาไทยที่นี่…"></textarea>
+        <label class="label" for="custom-text">Paste any text in this language to practise. It stays in your browser.</label>
+        <textarea id="custom-text" rows="4"></textarea>
         <div class="custom-actions">
           <button type="button" id="custom-use" class="btn">Practise this</button>
           <button type="button" id="custom-cancel" class="pill">Cancel</button>
@@ -76,7 +101,7 @@
         <div><span class="stat" id="stat-time">0:00</span><span class="stat-label">time</span></div>
         <div class="next-hint" aria-live="polite">
           <span class="stat-label">next</span>
-          <span id="next-char" lang="th"></span>
+          <span id="next-char"></span>
           <span id="next-key" class="next-key"></span>
         </div>
       </section>
@@ -93,15 +118,15 @@
         <!-- Left: passage + on-screen keyboard. Right: English. Stacked on narrow screens. -->
         <div class="practice-grid">
         <div class="practice-main">
-        <div id="passage" class="passage" lang="th" tabindex="0" aria-label="Text to type. Click here, then start typing."></div>
+        <div id="passage" class="passage" tabindex="0" aria-label="Text to type. Click here, then start typing."></div>
         <!-- Receives soft-keyboard input on phones/tablets; desktop keys are mapped from physical positions. -->
         <textarea id="capture" class="capture" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1"></textarea>
-        <p id="focus-hint" class="focus-hint">Click the text and start typing — your keyboard types Thai here, whatever layout your computer uses.</p>
+        <p id="focus-hint" class="focus-hint">Click the text and start typing. Your keyboard types this language here, whatever layout your computer uses.</p>
         <div id="result" class="result" hidden>
           <p id="result-text"></p>
           <button type="button" id="result-next" class="btn">Next passage <span class="kbd">Enter</span></button>
         </div>
-        <section id="keyboard" class="keyboard" hidden aria-label="On-screen Thai keyboard"></section>
+        <section id="keyboard" class="keyboard" hidden aria-label="On-screen keyboard"></section>
         </div>
         <section id="translation" class="translation" aria-label="English translation" hidden>
           <div class="translation-head">
@@ -120,11 +145,12 @@
         <p id="attribution" class="attribution"></p>
       </section>
 
+      </div>
     </main>
 
     <footer>
       <p>
-        Stories from <a href="https://bloomlibrary.org/language:th" rel="noopener">Bloom Library</a>, shared by their authors under Creative Commons licences (credited under each passage).
+        Stories from <a href="https://bloomlibrary.org/" id="bloom-link" rel="noopener">Bloom Library</a>, shared by their authors under Creative Commons licences (credited under each passage).
         English translations and English titles are AI-generated and may contain mistakes.
         Nothing you type leaves your browser. <a href="https://github.com/VattanaryT/language-typing-practice" id="source-link" rel="noopener">Source code</a>.
       </p>

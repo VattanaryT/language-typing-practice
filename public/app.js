@@ -1,5 +1,38 @@
 import { LAYOUTS } from "./layouts.js";
 
+// Everything language-specific lives here. Adding a language means adding an
+// entry, a layout in scripts/gen-layouts.py and a story file from
+// scripts/fetch-bloom.py.
+const LANGS = {
+  th: {
+    name: "Thai",
+    native: "ไทย",
+    subtitle: "ฝึกพิมพ์ภาษาไทย",
+    layouts: [
+      ["kedmanee", "Kedmanee"],
+      ["pattachote", "Pattachote"],
+    ],
+    // Vowel/tone marks drawn above or below a consonant: shown on a dotted
+    // circle (◌) so a lone mark is visible on keys and in the "next" hint.
+    combining: /[ัิ-ฺ็-๎]/,
+    praise: ["เยี่ยมมาก!", "ดีมาก!", "สู้ ๆ!"],
+    placeholder: "วางข้อความภาษาไทยที่นี่…",
+    fallback: "สวัสดีครับ ยินดีต้อนรับ",
+    bloom: "https://bloomlibrary.org/language:th",
+  },
+  km: {
+    name: "Khmer",
+    native: "ខ្មែរ",
+    subtitle: "ហាត់វាយអក្សរខ្មែរ",
+    layouts: [["nida", "NiDA (standard)"]],
+    combining: /[ា-៓៝]/,
+    praise: ["ល្អណាស់!", "ល្អ!", "ព្យាយាមទៀត!"],
+    placeholder: "បិទភ្ជាប់អត្ថបទខ្មែរនៅទីនេះ…",
+    fallback: "សួស្តី",
+    bloom: "https://bloomlibrary.org/language:km",
+  },
+};
+
 // Target passage length (characters) per level. Stories are also bucketed by
 // difficulty at build time (scripts/fetch-bloom.py), so a level changes both
 // which stories you see and how much you type before a break.
@@ -13,13 +46,12 @@ const LICENSES = {
   "cc-by-nc-nd": ["CC BY-NC-ND 4.0", "https://creativecommons.org/licenses/by-nc-nd/4.0/"],
   cc0: ["CC0", "https://creativecommons.org/publicdomain/zero/1.0/"],
 };
-// Thai vowel/tone marks that sit above or below a consonant. Shown on a dotted
-// circle (◌) so a lone mark is visible on keys and in the "next" hint.
-const COMBINING = /[ัิ-ฺ็-๎]/;
+// Key levels: 0 plain, 1 Shift, 2 AltGr (right Alt; Khmer uses it).
+const LEVEL_PREFIX = ["", "Shift + ", "AltGr + "];
 
 // Physical key rows, in "u" widths. Codes match KeyboardEvent.code, which is
 // the key's position regardless of the OS layout -- that's what lets anyone
-// type Thai here from a US/UK/any keyboard.
+// type Thai or Khmer here from a US/UK/any keyboard.
 const ROWS = [
   ["Backquote", "Digit1", "Digit2", "Digit3", "Digit4", "Digit5", "Digit6", "Digit7", "Digit8", "Digit9", "Digit0", "Minus", "Equal", { mod: "Backspace", label: "⌫", w: 2 }],
   [{ mod: "Tab", label: "Tab", w: 1.5 }, "KeyQ", "KeyW", "KeyE", "KeyR", "KeyT", "KeyY", "KeyU", "KeyI", "KeyO", "KeyP", "BracketLeft", "BracketRight", { code: "Backslash", w: 1.5 }],
@@ -28,7 +60,7 @@ const ROWS = [
   [{ mod: "Space", label: "Space", w: 6.25 }],
 ];
 // US characters per physical key: labels on the on-screen keys, and a fallback
-// for phones with a Latin soft keyboard (typing "f" gives the Thai letter on F).
+// for phones with a Latin soft keyboard (typing "f" gives the letter on F).
 const US = {
   Backquote: "`~", Digit1: "1!", Digit2: "2@", Digit3: "3#", Digit4: "4$", Digit5: "5%", Digit6: "6^", Digit7: "7&", Digit8: "8*", Digit9: "9(", Digit0: "0)", Minus: "-_", Equal: "=+",
   BracketLeft: "[{", BracketRight: "]}", Backslash: "\\|", Semicolon: ";:", Quote: "'\"", Comma: ",<", Period: ".>", Slash: "/?",
@@ -44,15 +76,19 @@ const store = {
     try { localStorage.setItem(k, v); } catch {}
   },
 };
-const graphemes = new Intl.Segmenter("th", { granularity: "grapheme" });
-const words = new Intl.Segmenter("th", { granularity: "word" });
+// Per-language settings. Thai used unprefixed keys before Khmer existed, so
+// fall back to those to keep returning visitors' choices.
+const langKey = (name) => `tt_${state.lang}_${name}`;
+const langGet = (name) => store.get(langKey(name)) ?? (state.lang === "th" ? store.get(`tt_${name}`) : null);
 
 const state = {
-  layout: LAYOUTS[store.get("tt_layout")] ? store.get("tt_layout") : "kedmanee",
-  level: Number(store.get("tt_level")) in PASSAGE_LEN ? Number(store.get("tt_level")) : 1,
+  lang: null, // null = home page
+  layout: "",
+  level: 1,
   showKeyboard: store.get("tt_keyboard") === "1",
   showTranslation: store.get("tt_translation") !== "0",
   stories: [],
+  storyCache: {},
   story: null, // current story object, or null for own text
   customText: "",
   passages: [],
@@ -67,21 +103,24 @@ const state = {
   startedAt: 0,
   endedAt: 0,
   shiftLatch: false,
+  altLatch: false,
 };
 let timer = 0;
+let graphemes, words;
+const L = () => LANGS[state.lang];
 
 // ---------- text preparation ----------
 
 function normalize(text) {
   return text
-    .replace(/[​-‍﻿]/g, "") // zero-width spaces are common in Thai web text
-    .replace(/ํา/g, "ำ") // nikhahit + sara aa, typed as one key: sara am
+    .replace(/[​-‍﻿]/g, "") // zero-width spaces are common in Thai and Khmer text
+    .replace(/ํา/g, "ำ") // Thai nikhahit + sara aa, typed as one key: sara am
     .replace(/[\s ]+/g, " ")
     .trim();
 }
 
-// Break long text at word boundaries (Thai has no spaces between words; the
-// browser's Thai dictionary segmenter finds them).
+// Break long text at word boundaries (neither Thai nor Khmer puts spaces
+// between words; the browser's dictionary segmenter finds them).
 function splitLong(text, len) {
   const out = [];
   let cur = "";
@@ -125,20 +164,25 @@ function makePassages(paragraphs, len) {
 function layoutMap() {
   return LAYOUTS[state.layout];
 }
+const hasAltGr = () => Object.values(layoutMap()).some((k) => k.length > 2);
 
-// char -> { code, shift } for the "next key" hint and keyboard highlight.
+// char -> { code, level } for the "next key" hint and keyboard highlight.
+// Keys that type two characters at once (Khmer ាំ etc.) are skipped here:
+// each of their characters also has a key of its own.
 function reverseMap() {
-  const rev = { " ": { code: "Space", shift: false } };
-  for (const [code, [plain, shifted]] of Object.entries(layoutMap())) {
-    if (!(plain in rev)) rev[plain] = { code, shift: false };
-    if (!(shifted in rev)) rev[shifted] = { code, shift: true };
+  const rev = { " ": { code: "Space", level: 0 } };
+  for (let level = 0; level < 3; level++) {
+    for (const [code, chars] of Object.entries(layoutMap())) {
+      const ch = chars[level];
+      if (ch && ch.length === 1 && !(ch in rev)) rev[ch] = { code, level };
+    }
   }
   return rev;
 }
-let REV = reverseMap();
+let REV = {};
 
 const typeable = (ch) => ch in REV;
-const show = (ch) => (COMBINING.test(ch) ? "◌" + ch : ch);
+const show = (ch) => (ch && L().combining.test(ch) ? "◌" + ch : ch ?? "");
 const keyName = (code) => (code === "Space" ? "Space" : US[code][0].toUpperCase());
 
 // ---------- passage lifecycle ----------
@@ -188,7 +232,15 @@ function skipUntypeable() {
   }
 }
 
-function type(ch) {
+// One key press. Usually one character, but some Khmer keys type two.
+function type(text) {
+  if (!text) return;
+  for (const ch of text) typeChar(ch);
+  renderStats();
+  paint();
+}
+
+function typeChar(ch) {
   if (state.endedAt || state.pos >= state.target.length) return;
   if (!state.startedAt) {
     state.startedAt = performance.now();
@@ -201,8 +253,6 @@ function type(ch) {
   state.pos++;
   skipUntypeable();
   if (state.pos >= state.target.length) finish();
-  renderStats();
-  paint();
 }
 
 function backspace() {
@@ -220,13 +270,13 @@ function finish() {
   clearInterval(timer);
   renderStats();
   const s = stats();
-  const praise = s.acc >= 98 ? "เยี่ยมมาก!" : s.acc >= 90 ? "ดีมาก!" : "สู้ ๆ!";
+  const [great, good, keepGoing] = L().praise;
   const r = $("result-text");
   r.textContent = "";
-  const th = document.createElement("span");
-  th.lang = "th";
-  th.textContent = praise + " ";
-  r.append(th, `${s.cpm} chars/min · ${s.acc}% accuracy · ${s.time}`);
+  const cheer = document.createElement("span");
+  cheer.lang = state.lang;
+  cheer.textContent = (s.acc >= 98 ? great : s.acc >= 90 ? good : keepGoing) + " ";
+  r.append(cheer, `${s.cpm} chars/min · ${s.acc}% accuracy · ${s.time}`);
   $("result").hidden = false;
 }
 
@@ -262,11 +312,12 @@ function renderHint() {
   const ch = state.endedAt ? "" : state.target[state.pos] ?? "";
   const k = REV[ch];
   $("next-char").textContent = ch === " " ? "␣" : show(ch);
-  $("next-key").textContent = k ? (k.shift ? "Shift + " : "") + keyName(k.code) : "";
+  $("next-key").textContent = k ? LEVEL_PREFIX[k.level] + keyName(k.code) : "";
   document.querySelectorAll(".key.target").forEach((el) => el.classList.remove("target"));
   if (k && state.showKeyboard) {
     document.querySelector(`.key[data-code="${k.code}"]`)?.classList.add("target");
-    if (k.shift) document.querySelectorAll('.key[data-mod^="Shift"]').forEach((el) => el.classList.add("target"));
+    if (k.level === 1) document.querySelectorAll('.key[data-mod^="Shift"]').forEach((el) => el.classList.add("target"));
+    if (k.level === 2) document.querySelector('.key[data-mod="AltGr"]')?.classList.add("target");
   }
 }
 
@@ -288,6 +339,15 @@ function renderStats() {
   $("stat-time").textContent = s.time;
 }
 
+function link(text, href) {
+  const a = document.createElement("a");
+  a.href = href;
+  a.textContent = text;
+  a.rel = "noopener";
+  a.target = "_blank";
+  return a;
+}
+
 function renderAttribution() {
   const el = $("attribution");
   el.textContent = "";
@@ -297,16 +357,8 @@ function renderAttribution() {
     return;
   }
   const [licName, licUrl] = LICENSES[s.license] || [s.license, null];
-  const link = (text, href) => {
-    const a = document.createElement("a");
-    a.href = href;
-    a.textContent = text;
-    a.rel = "noopener";
-    a.target = "_blank";
-    return a;
-  };
   const title = document.createElement("span");
-  title.lang = "th";
+  title.lang = state.lang;
   title.textContent = `“${s.title}”`;
   el.append(title, ` — ${s.copyright || "Bloom Library author"}. `);
   el.append(licUrl ? link(licName, licUrl) : licName, " · ", link("Read the illustrated book on Bloom Library", s.source));
@@ -331,7 +383,7 @@ function renderTranslation() {
   body.textContent = "";
   if (!s.paragraphs_en) {
     body.className = "translation-text muted";
-    body.textContent = "No English for this story: its author's licence (No Derivatives) doesn't allow translations. Stories marked “Thai only” in the list are like this.";
+    body.textContent = `No English for this story: its author's licence (No Derivatives) doesn't allow translations. Stories marked “${L().name} only” in the list are like this.`;
     return;
   }
   body.className = "translation-text";
@@ -352,7 +404,9 @@ function renderKeyboard() {
   const kb = $("keyboard");
   kb.textContent = "";
   const map = layoutMap();
-  for (const row of ROWS) {
+  const rows = ROWS.map((r) => [...r]);
+  if (hasAltGr()) rows[4].push({ mod: "AltGr", label: "AltGr", w: 1.75 });
+  for (const row of rows) {
     const r = document.createElement("div");
     r.className = "kb-row";
     for (const k of row) {
@@ -368,10 +422,12 @@ function renderKeyboard() {
         b.dataset.code = spec.mod;
         b.textContent = spec.label;
       } else {
-        const [plain, shifted] = map[spec.code];
+        const [plain, shifted, altgr] = map[spec.code];
         b.dataset.code = spec.code;
-        b.setAttribute("aria-label", `${plain}, shift ${shifted}`);
-        for (const [cls, text] of [["latin", US[spec.code][0].toUpperCase()], ["shift", show(shifted)], ["main", show(plain)]]) {
+        b.lang = state.lang;
+        b.setAttribute("aria-label", [plain, shifted && `shift ${shifted}`, altgr && `altgr ${altgr}`].filter(Boolean).join(", "));
+        for (const [cls, text] of [["latin", US[spec.code][0].toUpperCase()], ["shift", show(shifted)], ["main", show(plain)], ["alt", show(altgr)]]) {
+          if (!text) continue;
           const s = document.createElement("span");
           s.className = cls;
           s.textContent = text;
@@ -382,14 +438,20 @@ function renderKeyboard() {
     }
     kb.appendChild(r);
   }
-  syncShift();
+  syncMods();
   renderHint();
 }
 
-function syncShift(physical = false) {
-  const on = state.shiftLatch || physical;
-  $("keyboard").classList.toggle("shifted", on);
+// Shift and AltGr work as one-shot latches on the on-screen keyboard, and
+// light up while held on a physical one.
+let physShift = false;
+let physAltGr = false;
+function syncMods() {
+  const kb = $("keyboard");
+  kb.classList.toggle("shifted", state.shiftLatch || physShift);
+  kb.classList.toggle("altgr", state.altLatch || physAltGr);
   document.querySelectorAll('.key[data-mod^="Shift"]').forEach((el) => el.classList.toggle("latched", state.shiftLatch));
+  document.querySelector('.key[data-mod="AltGr"]')?.classList.toggle("latched", state.altLatch);
 }
 
 // On-screen key taps. mousedown is cancelled so focus stays on the passage.
@@ -398,18 +460,26 @@ $("keyboard").addEventListener("click", (e) => {
   const key = e.target.closest(".key");
   if (!key) return;
   const { code, mod } = key.dataset;
-  if (mod === "Backspace") backspace();
-  else if (mod === "ShiftLeft" || mod === "ShiftRight") {
+  if (mod === "ShiftLeft" || mod === "ShiftRight") {
     state.shiftLatch = !state.shiftLatch;
-    syncShift();
+    state.altLatch = false;
+    syncMods();
     return;
-  } else if (mod === "Space") type(" ");
+  }
+  if (mod === "AltGr") {
+    state.altLatch = !state.altLatch;
+    state.shiftLatch = false;
+    syncMods();
+    return;
+  }
+  if (mod === "Backspace") backspace();
+  else if (mod === "Space") type(" ");
   else if (mod === "Enter") {
     if (state.endedAt) nextPassage();
-  } else if (!mod) type(layoutMap()[code][state.shiftLatch ? 1 : 0]);
-  if (state.shiftLatch) {
-    state.shiftLatch = false;
-    syncShift();
+  } else if (!mod) type(layoutMap()[code][state.altLatch ? 2 : state.shiftLatch ? 1 : 0]);
+  if (state.shiftLatch || state.altLatch) {
+    state.shiftLatch = state.altLatch = false;
+    syncMods();
   }
   flash(code);
 });
@@ -427,8 +497,20 @@ const isField = (el) => el && el !== $("capture") && (el.tagName === "TEXTAREA" 
 const inTypingArea = (el) => !el || el === document.body || el === $("passage") || el === $("capture");
 
 document.addEventListener("keydown", (e) => {
-  if (isField(e.target) || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
-  if (e.key === "Shift") syncShift(true);
+  if (!state.lang || isField(e.target) || e.metaKey || e.isComposing) return;
+  if (e.code === "AltRight") {
+    physAltGr = true;
+    syncMods();
+    e.preventDefault(); // keep the browser from treating it as a menu key
+    return;
+  }
+  // AltGr arrives as right Alt on Linux/macOS and as Ctrl+Alt on Windows.
+  const altgr = physAltGr || e.getModifierState("AltGraph");
+  if ((e.ctrlKey || e.altKey) && !altgr) return;
+  if (e.key === "Shift") {
+    physShift = true;
+    syncMods();
+  }
   const typing = inTypingArea(e.target);
   if (e.key === "Escape") {
     loadPassage(state.pIndex);
@@ -446,13 +528,18 @@ document.addEventListener("keydown", (e) => {
   document.querySelector(`.key[data-code="${e.code}"]`)?.classList.add("pressed");
   if (e.code === "Backspace") backspace();
   else if (e.code === "Space") type(" ");
-  else type(mapped[e.shiftKey ? 1 : 0]);
+  else type(mapped[altgr ? 2 : e.shiftKey ? 1 : 0]);
 });
 document.addEventListener("keyup", (e) => {
-  if (e.key === "Shift") syncShift(false);
+  if (e.key === "Shift") physShift = false;
+  if (e.code === "AltRight") physAltGr = false;
+  syncMods();
   document.querySelector(`.key[data-code="${e.code}"]`)?.classList.remove("pressed");
 });
-window.addEventListener("blur", () => syncShift(false));
+window.addEventListener("blur", () => {
+  physShift = physAltGr = false;
+  syncMods();
+});
 
 // Phones/tablets: soft keyboards send text through the input event (keydown
 // has no usable code). A one-space sentinel keeps Backspace working when empty.
@@ -498,11 +585,11 @@ function setRadio(groupId, attr, value) {
 
 function setLayout(name) {
   state.layout = name;
-  store.set("tt_layout", name);
+  store.set(langKey("layout"), name);
   REV = reverseMap();
   setRadio("layout-group", "layout", name);
   renderKeyboard();
-  loadPassage(state.pIndex); // typeable set can differ between layouts
+  if (state.passages.length) loadPassage(state.pIndex); // typeable set can differ between layouts
 }
 
 function storiesAt(level) {
@@ -518,8 +605,8 @@ function fillStorySelect() {
   sel.textContent = "";
   if (!state.story) sel.add(new Option("Your own text", "__custom"));
   for (const s of storiesAt(state.level)) {
-    // English first so the list is usable before you can read Thai.
-    const label = (s.title_en ? `${s.title_en} · ${s.title}` : s.title) + (s.paragraphs_en ? "" : " (Thai only)");
+    // English first so the list is usable before you can read the script.
+    const label = (s.title_en ? `${s.title_en} · ${s.title}` : s.title) + (s.paragraphs_en ? "" : ` (${L().name} only)`);
     sel.add(new Option(label, s.id));
   }
   sel.value = state.story ? state.story.id : "__custom";
@@ -527,7 +614,7 @@ function fillStorySelect() {
 
 function pickStory(id) {
   state.story = state.stories.find((s) => s.id === id) || null;
-  if (state.story) store.set("tt_story_" + state.level, id);
+  if (state.story) store.set(langKey("story_" + state.level), id);
   buildPassages();
   fillStorySelect();
   const saved = state.story ? Number(store.get("tt_pos_" + state.story.id)) || 0 : 0;
@@ -536,7 +623,7 @@ function pickStory(id) {
 
 function setLevel(level, { keepCustom = true } = {}) {
   state.level = level;
-  store.set("tt_level", String(level));
+  store.set(langKey("level"), String(level));
   setRadio("level-group", "level", level);
   if (!state.story && keepCustom && state.customText) {
     buildPassages();
@@ -544,7 +631,7 @@ function setLevel(level, { keepCustom = true } = {}) {
     loadPassage(0);
     return;
   }
-  const remembered = store.get("tt_story_" + level);
+  const remembered = langGet("story_" + level);
   const exists = storiesAt(level).some((s) => s.id === remembered);
   pickStory(exists ? remembered : randomStory().id);
 }
@@ -555,7 +642,7 @@ function setKeyboard(on) {
   $("keyboard").hidden = !on;
   $("keyboard-toggle").setAttribute("aria-pressed", String(on));
   $("keyboard-toggle").textContent = on ? "Hide keyboard" : "Show keyboard";
-  renderHint();
+  if (state.lang) renderHint();
 }
 
 function effectiveTheme() {
@@ -622,22 +709,58 @@ $("result-next").addEventListener("click", () => {
   focusTyping();
 });
 
-// ---------- start ----------
+// ---------- languages and routing ----------
+// The URL hash picks the view: no hash is the home page (choose a language),
+// #th and #km are the practice pages. Tabs are plain links, so back/forward
+// and bookmarks work.
 
-async function init() {
-  renderThemeButton();
-  setRadio("layout-group", "layout", state.layout);
-  setRadio("level-group", "level", state.level);
-  renderKeyboard();
-  setKeyboard(state.showKeyboard);
-  try {
-    const res = await fetch("stories.json");
-    state.stories = await res.json();
-  } catch {
-    state.stories = [];
+async function loadStories(lang) {
+  if (!state.storyCache[lang]) {
+    try {
+      state.storyCache[lang] = await (await fetch(`stories-${lang}.json`)).json();
+    } catch {
+      state.storyCache[lang] = [];
+    }
   }
+  return state.storyCache[lang];
+}
+
+async function openLanguage(lang) {
+  state.lang = lang;
+  const cfg = L();
+  document.documentElement.dataset.lang = lang;
+  graphemes = new Intl.Segmenter(lang, { granularity: "grapheme" });
+  words = new Intl.Segmenter(lang, { granularity: "word" });
+  $("subtitle").textContent = cfg.subtitle;
+  $("subtitle").lang = lang;
+  for (const id of ["passage", "story-select", "custom-text", "next-char"]) $(id).lang = lang;
+  $("custom-text").placeholder = cfg.placeholder;
+  $("bloom-link").href = cfg.bloom;
+
+  const group = $("layout-group");
+  group.textContent = "";
+  for (const [name, label] of cfg.layouts) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.setAttribute("role", "radio");
+    b.dataset.layout = name;
+    b.textContent = label;
+    group.appendChild(b);
+  }
+  const savedLayout = langGet("layout");
+  const layout = cfg.layouts.some(([n]) => n === savedLayout) ? savedLayout : cfg.layouts[0][0];
+  state.story = null;
+  state.customText = "";
+  state.passages = [];
+  setLayout(layout);
+
+  const lvl = Number(langGet("level"));
+  state.level = lvl in PASSAGE_LEN ? lvl : 1;
+  setRadio("level-group", "level", state.level);
+  state.stories = await loadStories(lang);
+  if (state.lang !== lang) return; // switched again while loading
   if (!state.stories.length) {
-    state.customText = "สวัสดีครับ ยินดีต้อนรับ";
+    state.customText = cfg.fallback;
     buildPassages();
     fillStorySelect();
     loadPassage(0);
@@ -645,4 +768,31 @@ async function init() {
   }
   setLevel(state.level, { keepCustom: false });
 }
-init();
+
+function route() {
+  const lang = location.hash.slice(1);
+  const known = lang in LANGS;
+  $("home").hidden = known;
+  $("practice-view").hidden = !known;
+  $("keyboard-toggle").hidden = !known;
+  for (const a of document.querySelectorAll(".lang-tab")) {
+    a.toggleAttribute("aria-current", a.dataset.lang === lang);
+    if (a.dataset.lang === lang) a.setAttribute("aria-current", "page");
+  }
+  if (!known) {
+    state.lang = null;
+    clearInterval(timer);
+    document.documentElement.dataset.lang = "";
+    $("subtitle").textContent = "ไทย · ខ្មែរ";
+    $("subtitle").removeAttribute("lang");
+    document.title = "Language Typing Practice";
+    return;
+  }
+  document.title = `${LANGS[lang].name} Typing Practice`;
+  if (state.lang !== lang) openLanguage(lang);
+}
+
+renderThemeButton();
+setKeyboard(state.showKeyboard);
+window.addEventListener("hashchange", route);
+route();
