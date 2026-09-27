@@ -81,7 +81,7 @@ body {
 header,
 main,
 footer {
-  max-width: 960px;
+  max-width: 1180px;
   margin: 0 auto;
   padding: 0 16px;
 }
@@ -397,8 +397,31 @@ select {
 }
 /* English meaning, kept visually quieter than the passage: it's a reading
    aid beside the practice, not something to type. */
+.practice-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+/* Side-by-side once there's room for a comfortable passage plus a readable
+   English column. A collapsed (hidden) translation falls back below as a
+   slim bar so the passage gets the full width. */
+@media (min-width: 900px) {
+  .practice-grid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr);
+  }
+  .practice-grid:has(> .translation.collapsed),
+  .practice-grid:has(> .translation[hidden]) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .translation:not(.collapsed) {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 32px);
+    overflow-y: auto;
+  }
+}
 .translation {
-  margin-top: 16px;
   padding: 14px 16px;
   border-left: 2px solid var(--accent);
   background: var(--accent-soft);

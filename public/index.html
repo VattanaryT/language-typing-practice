@@ -90,6 +90,9 @@
             <button type="button" id="next-passage" class="link" aria-label="Next passage">Next →</button>
           </div>
         </div>
+        <!-- Passage on the left, English on the right on wide screens; stacked on narrow ones. -->
+        <div class="practice-grid">
+        <div class="practice-main">
         <div id="passage" class="passage" lang="th" tabindex="0" aria-label="Text to type. Click here, then start typing."></div>
         <!-- Receives soft-keyboard input on phones/tablets; desktop keys are mapped from physical positions. -->
         <textarea id="capture" class="capture" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1"></textarea>
@@ -97,6 +100,7 @@
         <div id="result" class="result" hidden>
           <p id="result-text"></p>
           <button type="button" id="result-next" class="btn">Next passage <span class="kbd">Enter</span></button>
+        </div>
         </div>
         <section id="translation" class="translation" aria-label="English translation" hidden>
           <div class="translation-head">
@@ -111,6 +115,7 @@
             it isn't word-for-word, and it can occasionally be wrong. Check a dictionary before relying on a single word.
           </p>
         </section>
+        </div>
         <p id="attribution" class="attribution"></p>
       </section>
 

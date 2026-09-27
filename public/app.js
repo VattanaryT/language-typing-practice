@@ -325,6 +325,7 @@ function renderTranslation() {
   $("translation-toggle").textContent = on ? "Hide" : "Show";
   $("translation-toggle").setAttribute("aria-expanded", String(on));
   body.hidden = !on;
+  panel.classList.toggle("collapsed", !on); // a hidden translation gives its column back to the passage
   $("translation-note").hidden = !on;
   if (!on) return;
   body.textContent = "";
