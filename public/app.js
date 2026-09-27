@@ -795,7 +795,7 @@ function route() {
     state.lang = null;
     clearInterval(timer);
     document.documentElement.dataset.lang = "";
-    $("subtitle").textContent = "ไทย · ខ្មែរ";
+    $("subtitle").textContent = "ខ្មែរ · ไทย";
     $("subtitle").removeAttribute("lang");
     document.title = "Language Typing Practice";
     return;

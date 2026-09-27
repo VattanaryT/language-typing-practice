@@ -1,11 +1,11 @@
 # Language Typing Practice
 
-Practise typing **Thai** or **Khmer** with real children's stories, from any keyboard. The home page lets you pick a language; each has its own tab (`#th`, `#km`).
+Practise typing **Khmer** or **Thai** with real children's stories, from any keyboard. The home page lets you pick a language; each has its own tab (`#km`, `#th`).
 
 | Language | Layouts | Stories |
 |---|---|---|
-| Thai | Kedmanee, Pattachote | 78 from [Bloom Library](https://bloomlibrary.org/language:th) |
 | Khmer | NiDA (the national standard), including AltGr characters | 28 from [Bloom Library](https://bloomlibrary.org/language:km) |
+| Thai | Kedmanee, Pattachote | 78 from [Bloom Library](https://bloomlibrary.org/language:th) |
 
 - Your physical keys type the chosen language whatever layout your computer uses (keys are mapped by position, like branah.com). Khmer's third-level characters use the right Alt key (AltGr), and NiDA keys that type a vowel plus a sign (ាំ, ុះ, ...) type both in one press.
 - Stories are sorted into 4 levels. Higher levels mean longer phrases and longer passages.
