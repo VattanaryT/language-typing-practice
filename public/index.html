@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <!-- Static site, no backend: everything loads from this origin only.
+         GitHub Pages can't set response headers, so the policy lives here. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>Thai Typing</title>
+    <meta name="description" content="Practice Thai typing (Kedmanee or Pattachote) with real, openly licensed children's stories." />
+    <!-- Sets the theme before styles load so there's no flash of the wrong one. -->
+    <script src="theme-init.js"></script>
+    <link rel="stylesheet" href="fonts.css" />
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <header>
+      <div class="header-top">
+        <div>
+          <h1>Thai Typing</h1>
+          <p class="subtitle" lang="th">ฝึกพิมพ์ภาษาไทย</p>
+        </div>
+        <div class="header-actions">
+          <button type="button" id="keyboard-toggle" class="pill" aria-pressed="false">Show keyboard</button>
+          <button type="button" id="theme-toggle" class="pill" aria-label="Toggle dark mode"></button>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section class="controls" aria-label="Practice settings">
+        <div class="control">
+          <span class="label" id="layout-label">Layout</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="layout-label" id="layout-group">
+            <button type="button" role="radio" data-layout="kedmanee">Kedmanee</button>
+            <button type="button" role="radio" data-layout="pattachote">Pattachote</button>
+          </div>
+        </div>
+        <div class="control">
+          <span class="label" id="level-label">Level</span>
+          <div class="segmented" role="radiogroup" aria-labelledby="level-label" id="level-group">
+            <button type="button" role="radio" data-level="1" title="Short phrases, spaced words">1</button>
+            <button type="button" role="radio" data-level="2">2</button>
+            <button type="button" role="radio" data-level="3">3</button>
+            <button type="button" role="radio" data-level="4" title="Long unbroken sentences">4</button>
+          </div>
+        </div>
+        <div class="control grow">
+          <label class="label" for="story-select">Story</label>
+          <div class="story-row">
+            <select id="story-select"></select>
+            <button type="button" id="random-story" class="pill" title="Random story at this level">Random</button>
+            <button type="button" id="custom-toggle" class="pill">Own text</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="custom-panel" class="custom-panel" hidden>
+        <label class="label" for="custom-text">Paste any Thai text to practise. It stays in your browser.</label>
+        <textarea id="custom-text" rows="4" lang="th" placeholder="วางข้อความภาษาไทยที่นี่…"></textarea>
+        <div class="custom-actions">
+          <button type="button" id="custom-use" class="btn">Practise this</button>
+          <button type="button" id="custom-cancel" class="pill">Cancel</button>
+        </div>
+      </section>
+
+      <section class="stats" aria-live="off">
+        <div><span class="stat" id="stat-cpm">0</span><span class="stat-label">chars / min</span></div>
+        <div><span class="stat" id="stat-wpm">0</span><span class="stat-label">wpm</span></div>
+        <div><span class="stat" id="stat-acc">100%</span><span class="stat-label">accuracy</span></div>
+        <div><span class="stat" id="stat-time">0:00</span><span class="stat-label">time</span></div>
+        <div class="next-hint" aria-live="polite">
+          <span class="stat-label">next</span>
+          <span id="next-char" lang="th"></span>
+          <span id="next-key" class="next-key"></span>
+        </div>
+      </section>
+
+      <section class="practice">
+        <div class="passage-meta">
+          <span id="passage-count"></span>
+          <div class="passage-nav">
+            <button type="button" id="prev-passage" class="link" aria-label="Previous passage">← Prev</button>
+            <button type="button" id="restart" class="link" title="Esc">Restart</button>
+            <button type="button" id="next-passage" class="link" aria-label="Next passage">Next →</button>
+          </div>
+        </div>
+        <div id="passage" class="passage" lang="th" tabindex="0" aria-label="Text to type. Click here, then start typing."></div>
+        <!-- Receives soft-keyboard input on phones/tablets; desktop keys are mapped from physical positions. -->
+        <textarea id="capture" class="capture" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" aria-hidden="true" tabindex="-1"></textarea>
+        <p id="focus-hint" class="focus-hint">Click the text and start typing — your keyboard types Thai here, whatever layout your computer uses.</p>
+        <div id="result" class="result" hidden>
+          <p id="result-text"></p>
+          <button type="button" id="result-next" class="btn">Next passage <span class="kbd">Enter</span></button>
+        </div>
+        <p id="attribution" class="attribution"></p>
+      </section>
+
+      <section id="keyboard" class="keyboard" hidden aria-label="On-screen Thai keyboard"></section>
+    </main>
+
+    <footer>
+      <p>
+        Stories from <a href="https://bloomlibrary.org/language:th" rel="noopener">Bloom Library</a>, shared by their authors under Creative Commons licences (credited under each passage).
+        Nothing you type leaves your browser. <a href="https://github.com/" id="source-link" rel="noopener">Source code</a>.
+      </p>
+    </footer>
+
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

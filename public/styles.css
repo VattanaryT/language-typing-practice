@@ -1,0 +1,529 @@
+/* Design tokens borrowed from the recipe book: warm cream + near-black ink,
+   gold accent, Playfair Display headings, Inter UI, Sarabun for Thai text,
+   sharp corners and hairline borders. --ink is both text color and the fill
+   for active buttons; --accent-fg is the text on that fill, so swapping those
+   two per theme inverts every control without per-component dark rules. */
+:root {
+  --bg: #f9f8f6;
+  --surface: #ffffff;
+  --ink: #1a1a1a;
+  --muted: #6c6863;
+  --faint: #b3ada4;
+  --line: rgba(26, 26, 26, 0.15);
+  --line-strong: #1a1a1a;
+  --accent: #b8962b;
+  --accent-soft: rgba(212, 175, 55, 0.18);
+  --accent-fg: #ffffff;
+  --good: #1a1a1a;
+  --bad: #b3261e;
+  --bad-soft: rgba(179, 38, 30, 0.12);
+  --font-heading: "Playfair Display", Georgia, serif;
+  --font-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-thai: "Sarabun", "Noto Sans Thai", "Leelawadee UI", Tahoma, sans-serif;
+  --ease-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  color-scheme: light;
+}
+
+/* Dark palette: explicit choice, or the OS setting when no choice is saved. */
+:root[data-theme="dark"] {
+  --bg: #16140f;
+  --surface: #201d17;
+  --ink: #f0ece3;
+  --muted: #a39a8a;
+  --faint: #5f584c;
+  --line: rgba(240, 236, 227, 0.15);
+  --line-strong: #f0ece3;
+  --accent: #e3c65a;
+  --accent-soft: rgba(227, 198, 90, 0.18);
+  --accent-fg: #16140f;
+  --good: #f0ece3;
+  --bad: #ff8a80;
+  --bad-soft: rgba(255, 138, 128, 0.14);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #16140f;
+    --surface: #201d17;
+    --ink: #f0ece3;
+    --muted: #a39a8a;
+    --faint: #5f584c;
+    --line: rgba(240, 236, 227, 0.15);
+    --line-strong: #f0ece3;
+    --accent: #e3c65a;
+    --accent-soft: rgba(227, 198, 90, 0.18);
+    --accent-fg: #16140f;
+    --good: #f0ece3;
+    --bad: #ff8a80;
+    --bad-soft: rgba(255, 138, 128, 0.14);
+    color-scheme: dark;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+[hidden] {
+  display: none !important;
+}
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--ink);
+  line-height: 1.6;
+  transition: background-color 200ms var(--ease-out), color 200ms var(--ease-out);
+}
+[lang="th"] {
+  font-family: var(--font-thai);
+}
+
+header,
+main,
+footer {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 16px;
+}
+header {
+  padding-top: 28px;
+}
+.header-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+h1 {
+  font-family: var(--font-heading);
+  font-weight: 400;
+  font-size: clamp(1.8rem, 5vw, 2.4rem);
+  margin: 0;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+.subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+}
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Buttons */
+button {
+  font: inherit;
+  color: inherit;
+}
+.pill,
+.btn,
+.segmented button {
+  font-family: var(--font-body);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+  padding: 8px 14px;
+  cursor: pointer;
+  background: transparent;
+  color: var(--ink);
+  transition: background-color 150ms var(--ease-out), color 150ms var(--ease-out);
+  white-space: nowrap;
+}
+.pill:hover,
+.segmented button:hover {
+  background: var(--accent-soft);
+}
+.pill[aria-pressed="true"],
+.btn {
+  background: var(--ink);
+  color: var(--accent-fg);
+}
+.btn:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-fg);
+}
+.link {
+  background: none;
+  border: none;
+  padding: 4px 2px;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.link:hover {
+  color: var(--ink);
+}
+.link:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Settings */
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px 28px;
+  padding: 20px 0 8px;
+  align-items: flex-end;
+}
+.control {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.control.grow {
+  flex: 1 1 280px;
+}
+.label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line-strong);
+}
+.segmented button {
+  border: none;
+  border-right: 1px solid var(--line);
+}
+.segmented button:last-child {
+  border-right: none;
+}
+.segmented button[aria-checked="true"] {
+  background: var(--ink);
+  color: var(--accent-fg);
+}
+.story-row {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+select,
+textarea {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 0;
+}
+select {
+  flex: 1;
+  min-width: 0;
+  padding: 7px 10px;
+  font-family: var(--font-thai);
+  font-size: 0.95rem;
+}
+
+.custom-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0;
+}
+.custom-panel textarea {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 1.05rem;
+  resize: vertical;
+}
+.custom-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Stats */
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  align-items: flex-end;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  margin-top: 12px;
+  padding: 14px 0;
+}
+.stats > div {
+  display: flex;
+  flex-direction: column;
+}
+.stat {
+  font-family: var(--font-heading);
+  font-size: 1.7rem;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-label {
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.next-hint {
+  margin-left: auto;
+  flex-direction: row !important;
+  align-items: baseline;
+  gap: 10px;
+}
+#next-char {
+  font-size: 1.9rem;
+  line-height: 1.1;
+  min-width: 1.4em;
+  text-align: center;
+  color: var(--accent);
+}
+.next-key,
+.kbd {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--line);
+  padding: 2px 6px;
+  color: var(--muted);
+}
+.next-key:empty {
+  display: none;
+}
+
+/* Passage */
+.practice {
+  padding: 20px 0 8px;
+  position: relative;
+}
+.passage-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-bottom: 10px;
+}
+.passage-nav {
+  display: flex;
+  gap: 14px;
+}
+.passage {
+  font-size: clamp(1.35rem, 3.6vw, 1.75rem);
+  line-height: 2.1;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  cursor: text;
+  overflow-wrap: anywhere;
+  min-height: 7em;
+  color: var(--faint);
+  transition: border-color 150ms var(--ease-out);
+}
+.passage:focus,
+.passage.focused {
+  outline: none;
+  border-color: var(--line-strong);
+}
+.passage .ok {
+  color: var(--good);
+}
+.passage .bad {
+  color: var(--bad);
+  background: var(--bad-soft);
+}
+.passage .skip {
+  color: var(--muted);
+}
+.passage .cur {
+  color: var(--ink);
+  background: var(--accent-soft);
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+.passage:not(.focused) .cur {
+  box-shadow: none;
+}
+.capture {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  border: 0;
+  padding: 0;
+  resize: none;
+  pointer-events: none;
+}
+.focus-hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+  margin: 10px 0 0;
+}
+.result {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--accent);
+  background: var(--accent-soft);
+}
+.result p {
+  margin: 0;
+}
+.result .kbd {
+  border-color: currentColor;
+  color: inherit;
+  margin-left: 6px;
+  opacity: 0.7;
+}
+.attribution {
+  font-size: 0.76rem;
+  color: var(--muted);
+  margin: 14px 0 0;
+}
+.attribution a,
+footer a {
+  color: inherit;
+  text-underline-offset: 2px;
+}
+
+/* On-screen keyboard. Keys are sized in "u" (one standard key width) so the
+   rows line up like a real board and scale with the container. */
+.keyboard {
+  --u: min(calc((100vw - 32px) / 15.2), 60px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: calc(var(--u) * 0.08);
+  padding: 20px 0 8px;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.kb-row {
+  display: flex;
+  gap: calc(var(--u) * 0.08);
+}
+.key {
+  position: relative;
+  width: calc(var(--u) * var(--w, 1) - var(--u) * 0.08);
+  height: calc(var(--u) * 0.95);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  cursor: pointer;
+  padding: 0;
+  font-family: var(--font-thai);
+  touch-action: manipulation;
+  transition: background-color 100ms, border-color 100ms;
+}
+.key:hover {
+  border-color: var(--line-strong);
+}
+.key .main {
+  position: absolute;
+  left: 50%;
+  bottom: 10%;
+  transform: translateX(-50%);
+  font-size: calc(var(--u) * 0.42);
+  line-height: 1;
+}
+.key .shift {
+  position: absolute;
+  right: 10%;
+  top: 7%;
+  font-size: calc(var(--u) * 0.26);
+  line-height: 1;
+  color: var(--muted);
+}
+.key .latin {
+  position: absolute;
+  left: 9%;
+  top: 7%;
+  font-family: var(--font-body);
+  font-size: calc(var(--u) * 0.2);
+  line-height: 1;
+  color: var(--faint);
+}
+.key.mod {
+  font-family: var(--font-body);
+  font-size: calc(var(--u) * 0.19);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.key.target {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  box-shadow: inset 0 -3px 0 var(--accent);
+}
+.key.pressed {
+  background: var(--ink);
+  color: var(--accent-fg);
+}
+.key.pressed .shift,
+.key.pressed .latin {
+  color: var(--accent-fg);
+}
+.keyboard.shifted .key .main {
+  opacity: 0.35;
+}
+.keyboard.shifted .key .shift {
+  color: var(--ink);
+  font-size: calc(var(--u) * 0.36);
+}
+.key.latched {
+  background: var(--ink);
+  color: var(--accent-fg);
+}
+
+footer {
+  padding-top: 28px;
+  padding-bottom: 40px;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+footer p {
+  border-top: 1px solid var(--line);
+  padding-top: 16px;
+  margin: 0;
+}
+
+@media (max-width: 620px) {
+  .next-hint {
+    margin-left: 0;
+  }
+  .stats {
+    gap: 8px 22px;
+  }
+  .stat {
+    font-size: 1.35rem;
+  }
+  .passage {
+    padding: 14px;
+  }
+  .header-top {
+    flex-direction: column;
+  }
+  .header-actions {
+    justify-content: flex-start;
+  }
+}
